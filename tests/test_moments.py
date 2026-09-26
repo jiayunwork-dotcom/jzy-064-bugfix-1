@@ -1,5 +1,6 @@
 """Moment integration tests: grid convergence, no halfway truncation of
-the tail, and consistency of the derived statistics."""
+the tail, consistency of the derived statistics, and the scaling laws
+every characteristic period must obey when omega_p is rescaled."""
 
 import math
 
@@ -64,3 +65,35 @@ def test_derived_statistics_consistency():
     assert stats.t01 == pytest.approx(2.0 * math.pi * m.m0 / m.m1)
     # Physically sensible ordering for a narrow-band spectrum.
     assert stats.t01 < stats.tp
+
+
+def test_halving_omega_p_scales_all_periods_by_two():
+    """With alpha and gamma fixed, shifting omega_p -> omega_p/k rescales
+    the whole spectrum in frequency only, so EVERY characteristic period
+    must stretch by the same factor k: Tz/Tp is a shape constant of the
+    spectrum family, not a function of omega_p. Regression test for the
+    second-moment integrand (m2 needs omega**2 * s, not omega * s -- with
+    the wrong weight Tz degenerates to 2*pi*sqrt(m0/m1) and scales with
+    sqrt(k) instead of k, e.g. 1.41x instead of 2x for k=2)."""
+    stats1 = derived_statistics(_moments(4096, omega_p=0.6), 0.6)
+    stats2 = derived_statistics(_moments(4096, omega_p=0.3), 0.3)
+
+    assert stats2.tp == pytest.approx(2.0 * stats1.tp, rel=1e-12)
+    assert stats2.tz == pytest.approx(2.0 * stats1.tz, rel=1e-9)
+    assert stats2.t01 == pytest.approx(2.0 * stats1.t01, rel=1e-9)
+    # Equivalently: Tz/Tp must be the same constant for both spectra.
+    assert stats2.tz / stats2.tp == pytest.approx(
+        stats1.tz / stats1.tp, rel=1e-9
+    )
+
+
+def test_tz_never_exceeds_mean_period_t01():
+    """Cauchy-Schwarz on the spectral measure gives m1**2 <= m0*m2, hence
+    Tz = 2*pi*sqrt(m0/m2) <= 2*pi*m0/m1 = T01 for ANY spectrum. With a
+    wrong m2 weight this ordering flips whenever m0/m1 < 1 s."""
+    for omega_p in (0.3, 0.6, 1.0, 1.5):
+        for gamma in (1.0, 3.3, 6.0):
+            omega = omega_grid(omega_p, 4096)
+            m = spectral_moments(omega, jonswap(omega, omega_p, ALPHA, gamma))
+            stats = derived_statistics(m, omega_p)
+            assert stats.tz <= stats.t01
