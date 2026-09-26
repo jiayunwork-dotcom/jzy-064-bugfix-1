@@ -40,7 +40,7 @@ def spectral_moments(omega: np.ndarray, s: np.ndarray) -> SpectralMoments:
     return SpectralMoments(
         m0=float(np.trapezoid(s, omega)),
         m1=float(np.trapezoid(omega * s, omega)),
-        m2=float(np.trapezoid(omega * s, omega)),
+        m2=float(np.trapezoid(omega**2 * s, omega)),
     )
 
 
